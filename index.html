@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Trail Runner</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #1a2a33;
+    overflow: hidden;
+    touch-action: none;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+  #game {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+
+  const W = 900;
+  const H = 300;
+  const GROUND = H - 40;
+
+  const GRAVITY = 0.55;
+  const JUMP_V = -12.5;
+  const BASE_SPEED = 6;
+  const SPEED_INC = 0.0008;
+
+  let scale = 1;
+
+  function resize() {
+    const ratio = W / H;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    canvas.width = w * devicePixelRatio;
+    canvas.height = h * devicePixelRatio;
+    if (w / h > ratio) {
+      scale = h / H;
+    } else {
+      scale = w / W;
+    }
+    ctx.setTransform(devicePixelRatio * scale, 0, 0, devicePixelRatio * scale, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+  }
+  window.addEventListener('resize', resize);
+
+  const STATE = { READY: 0, RUNNING: 1, OVER: 2 };
+  let state = STATE.READY;
+
+  const player = {
+    x: 80, y: GROUND, w: 34, h: 46,
+    vy: 0, onGround: true, jumps: 0,
+    legPhase: 0, tilt: 0
+  };
+
+  let obstacles = [];
+  let speed = BASE_SPEED;
+  let score = 0;
+  let best = 0;
+  let frames = 0;
+  let spawnTimer = 0;
+  let groundOffset = 0;
+  let hillsOffset = 0;
+  let shakeT = 0;
+  let newBestFlash = 0;
+
+  const clouds = [];
+  for (let i = 0; i < 5; i++) {
+    clouds.push({ x: Math.random() * W, y: 30 + Math.random() * 70, s: 0.3 + Math.random() * 0.5 });
+  }
+
+  function reset() {
+    obstacles = [];
+    speed = BASE_SPEED;
+    score = 0;
+    frames = 0;
+    spawnTimer = 60;
+    player.y = GROUND;
+    player.vy = 0;
+    player.onGround = true;
+    player.jumps = 0;
+    player.tilt = 0;
+  }
+
+  function jump() {
+    if (state === STATE.READY) {
+      state = STATE.RUNNING;
+      reset();
+      return;
+    }
+    if (state === STATE.OVER) {
+      if (newBestFlash > 30) {
+        state = STATE.READY;
+        reset();
+      }
+      return;
+    }
+    if (player.onGround) {
+      player.vy = JUMP_V;
+      player.onGround = false;
+      player.jumps = 1;
+    } else if (player.jumps === 1) {
+      player.vy = JUMP_V * 0.92;
+      player.jumps = 2;
+    }
+  }
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      e.preventDefault();
+      jump();
+    }
+  });
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    jump();
+  });
+
+  function spawn() {
+    const type = Math.random();
+    if (type < 0.72) {
+      obstacles.push({ kind: 'rock', x: W + 40, w: 26 + Math.random() * 22, h: 28 + Math.random() * 22, y: 0 });
+    } else {
+      obstacles.push({ kind: 'log', x: W + 40, w: 55 + Math.random() * 40, h: 20, y: 0 });
+    }
+  }
+
+  function rectHit(a, b) {
+    const pad = 5;
+    return a.x + pad < b.x + b.w &&
+           a.x + a.w - pad > b.x &&
+           a.y + pad < b.y + b.h &&
+           a.y + a.h - pad > b.y;
+  }
+
+  function update() {
+    if (newBestFlash > 0) newBestFlash--;
+    if (shakeT > 0) shakeT--;
+
+    clouds.forEach(c => {
+      c.x -= speed * 0.2 * c.s;
+      if (c.x < -120) { c.x = W + 120; c.y = 30 + Math.random() * 70; }
+    });
+
+    hillsOffset = (hillsOffset + speed * 0.15) % 300;
+    groundOffset = (groundOffset + speed) % 40;
+
+    if (state !== STATE.RUNNING) return;
+
+    frames++;
+    score = Math.floor(frames / 6);
+    speed = BASE_SPEED + frames * SPEED_INC * 60 / 6;
+    if (speed > 14) speed = 14;
+
+    player.vy += GRAVITY;
+    player.y += player.vy;
+    if (player.y >= GROUND) {
+      player.y = GROUND;
+      player.vy = 0;
+      if (!player.onGround) shakeT = 6;
+      player.onGround = true;
+      player.jumps = 0;
+    }
+    player.tilt = Math.max(-0.35, Math.min(0.35, player.vy * 0.03));
+    player.legPhase += speed * 0.09;
+
+    spawnTimer--;
+    if (spawnTimer <= 0) {
+      spawn();
+      const minGap = 50 + speed * 8;
+      spawnTimer = minGap + Math.random() * 90;
+    }
+
+    const pbox = { x: player.x, y: player.y - player.h, w: player.w, h: player.h };
+
+    for (const o of obstacles) {
+      o.x -= speed;
+      const oy = o.kind === 'log' ? GROUND - o.h : GROUND - o.h;
+      if (rectHit(pbox, { x: o.x, y: oy, w: o.w, h: o.h })) {
+        state = STATE.OVER;
+        shakeT = 18;
+        const s = Math.floor(score);
+        if (s > best) { best = s; newBestFlash = 90; }
+        try { localStorage.setItem('trailRunnerBest', best); } catch (_) {}
+        return;
+      }
+    }
+    obstacles = obstacles.filter(o => o.x + o.w > -10);
+  }
+
+  function loadBest() {
+    try { best = parseInt(localStorage.getItem('trailRunnerBest') || '0', 10) || 0; } catch (_) { best = 0; }
+  }
+  loadBest();
+
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#7ec8e3');
+    g.addColorStop(0.6, '#b8e4f0');
+    g.addColorStop(1, '#e8f4d9');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = 'rgba(255,220,120,0.95)';
+    ctx.beginPath();
+    ctx.arc(W - 120, 60, 26, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    for (const c of clouds) {
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y, 34, 13, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x + 22, c.y - 6, 24, 12, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x - 22, c.y - 3, 22, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#9ec49a';
+    ctx.beginPath();
+    ctx.moveTo(-20, GROUND);
+    for (let x = -20; x <= W + 20; x += 6) {
+      const t = (x + hillsOffset) * 0.02;
+      const y = GROUND - 45 - Math.sin(t) * 22 - Math.sin(t * 2.3) * 10;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(W + 20, GROUND);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawGround() {
+    ctx.fillStyle = '#6d8f4e';
+    ctx.fillRect(0, GROUND, W, H - GROUND);
+    ctx.fillStyle = '#5a7a40';
+    ctx.fillRect(0, GROUND, W, 6);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    for (let x = -groundOffset; x < W; x += 40) {
+      ctx.fillRect(x, GROUND + 12, 18, 4);
+      ctx.fillRect(x + 12, GROUND + 26, 12, 3);
+    }
+  }
+
+  function drawPlayer() {
+    const x = player.x, y = player.y;
+    ctx.save();
+    ctx.translate(x + player.w / 2, y);
+    ctx.rotate(player.tilt);
+
+    ctx.fillStyle = '#e8ecf0';
+    ctx.fillRect(-player.w / 2, -player.h, player.w, player.h);
+
+    ctx.fillStyle = '#2b6cb0';
+    ctx.fillRect(-player.w / 2, -player.h, player.w, 10);
+
+    ctx.fillStyle = '#e8ecf0';
+    ctx.fillRect(player.w / 2 - 14, -player.h + 3, 14, 14);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(player.w / 2 - 6, -player.h + 8, 4, 4);
+
+    ctx.fillStyle = '#cfd6dd';
+    if (player.onGround) {
+      const l = Math.sin(player.legPhase) * 10;
+      ctx.fillRect(-6 + l, -player.h / 2 - 6, 10, 16);
+      ctx.fillRect(-6 - l, -player.h / 2 - 6, 10, 16);
+      const a = Math.sin(player.legPhase) * 14;
+      ctx.fillRect(-8 - a * 0.5, -14, 12, 14);
+      ctx.fillRect(-8 + a * 0.5, -14, 12, 14);
+    } else {
+      ctx.fillRect(-14, -20, 12, 14);
+      ctx.fillRect(2, -24, 12, 14);
+    }
+
+    ctx.fillStyle = '#2b6cb0';
+    ctx.fillRect(player.w / 2 - 4, -player.h + 8, 12, 6);
+
+    ctx.restore();
+  }
+
+  function drawObstacles() {
+    for (const o of obstacles) {
+      const y = GROUND - o.h;
+      if (o.kind === 'rock') {
+        ctx.fillStyle = '#8a7f70';
+        ctx.beginPath();
+        ctx.moveTo(o.x, GROUND);
+        ctx.lineTo(o.x + o.w * 0.2, y + o.h * 0.15);
+        ctx.lineTo(o.x + o.w * 0.55, y);
+        ctx.lineTo(o.x + o.w * 0.85, y + o.h * 0.25);
+        ctx.lineTo(o.x + o.w, GROUND);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.beginPath();
+        ctx.moveTo(o.x + o.w * 0.2, y + o.h * 0.2);
+        ctx.lineTo(o.x + o.w * 0.55, y + 4);
+        ctx.lineTo(o.x + o.w * 0.5, y + o.h * 0.5);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#7a5230';
+        ctx.fillRect(o.x, y, o.w, o.h);
+        ctx.fillStyle = '#5d3e22';
+        ctx.fillRect(o.x, y + 3, o.w, 4);
+        ctx.fillRect(o.x, y + 12, o.w, 3);
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath();
+        ctx.ellipse(o.x + 6, y + o.h / 2, 4, o.h / 2 - 2, 0, 0, Math.PI * 2);
+        ctx.ellipse(o.x + o.w - 6, y + o.h / 2, 4, o.h / 2 - 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawText(txt, x, y, size, color, align = 'left') {
+    ctx.fillStyle = color;
+    ctx.font = `bold ${size}px 'Segoe UI', Arial, sans-serif`;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(txt, x, y);
+  }
+
+  function drawUI() {
+    drawText(String(Math.floor(score)), W - 20, 30, 26, 'rgba(40,60,50,0.85)', 'right');
+    if (best > 0) drawText('BEST ' + best, W - 20, 56, 14, 'rgba(40,60,50,0.6)', 'right');
+
+    if (state === STATE.READY) {
+      drawText('TRAIL RUNNER', W / 2, H / 2 - 40, 42, 'rgba(30,50,45,0.9)', 'center');
+      drawText('Space oder Tippen zum Springen', W / 2, H / 2 + 5, 17, 'rgba(30,50,45,0.7)', 'center');
+      drawText('Doppelsprung in der Luft möglich', W / 2, H / 2 + 32, 13, 'rgba(30,50,45,0.5)', 'center');
+      drawText('Drücke Space / Tippe, um zu starten', W / 2, H / 2 + 70, 15, 'rgba(20,80,50,0.9)', 'center');
+    }
+
+    if (state === STATE.OVER) {
+      ctx.fillStyle = 'rgba(20,40,35,0.35)';
+      ctx.fillRect(0, 0, W, H);
+      drawText('GAME OVER', W / 2, H / 2 - 50, 40, '#fff', 'center');
+      drawText('Punkte: ' + Math.floor(score), W / 2, H / 2 - 5, 20, '#eaf2ee', 'center');
+      drawText('Bestleistung: ' + best, W / 2, H / 2 + 22, 15, 'rgba(255,255,255,0.75)', 'center');
+      if (newBestFlash > 0 && Math.floor(newBestFlash / 10) % 2 === 0) {
+        drawText('NEUE BESTLEISTUNG!', W / 2, H / 2 + 52, 16, '#ffd94a', 'center');
+      }
+      drawText('Space / Tippen für Neustart', W / 2, H / 2 + 85, 14, 'rgba(255,255,255,0.85)', 'center');
+    }
+  }
+
+  function render() {
+    ctx.save();
+    if (shakeT > 0) {
+      ctx.translate((Math.random() - 0.5) * shakeT * 0.6, (Math.random() - 0.5) * shakeT * 0.6);
+    }
+    drawSky();
+    drawGround();
+    drawObstacles();
+    drawPlayer();
+    drawUI();
+    ctx.restore();
+  }
+
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
