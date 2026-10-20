@@ -353,32 +353,88 @@
     ctx.translate(x + player.w / 2, y);
     ctx.rotate(player.tilt);
 
-    ctx.fillStyle = '#e8ecf0';
-    ctx.fillRect(-player.w / 2, -player.h, player.w, player.h);
+    const w = player.w, h = player.h;
 
-    ctx.fillStyle = '#2b6cb0';
-    ctx.fillRect(-player.w / 2, -player.h, player.w, 10);
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.ellipse(-2, -h + 24, w * 0.62, h * 0.34, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.fillStyle = '#e8ecf0';
-    ctx.fillRect(player.w / 2 - 14, -player.h + 3, 14, 14);
-    ctx.fillStyle = '#222';
-    ctx.fillRect(player.w / 2 - 6, -player.h + 8, 4, 4);
+    ctx.fillStyle = '#f5f5f0';
+    ctx.beginPath();
+    ctx.ellipse(0, -h + 28, w * 0.34, h * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-    ctx.fillStyle = '#cfd6dd';
+    ctx.fillStyle = '#8a5a2b';
+    ctx.beginPath();
+    ctx.ellipse(6, -h + 32, w * 0.2, h * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     if (player.onGround) {
-      const l = Math.sin(player.legPhase) * 10;
-      ctx.fillRect(-6 + l, -player.h / 2 - 6, 10, 16);
-      ctx.fillRect(-6 - l, -player.h / 2 - 6, 10, 16);
-      const a = Math.sin(player.legPhase) * 14;
-      ctx.fillRect(-8 - a * 0.5, -14, 12, 14);
-      ctx.fillRect(-8 + a * 0.5, -14, 12, 14);
+      const l = Math.sin(player.legPhase) * 7;
+      ctx.fillStyle = '#1c1c1c';
+      ctx.fillRect(-10 + l, -h + 38, 8, 16);
+      ctx.fillRect(2 - l, -h + 38, 8, 16);
+      ctx.fillStyle = '#8a5a2b';
+      ctx.fillRect(-10 + l, -h + 50, 8, 5);
+      ctx.fillRect(2 - l, -h + 50, 8, 5);
     } else {
-      ctx.fillRect(-14, -20, 12, 14);
-      ctx.fillRect(2, -24, 12, 14);
+      ctx.fillStyle = '#1c1c1c';
+      ctx.fillRect(-14, -h + 38, 8, 16);
+      ctx.fillRect(6, -h + 36, 8, 16);
+      ctx.fillStyle = '#8a5a2b';
+      ctx.fillRect(-14, -h + 50, 8, 5);
+      ctx.fillRect(6, -h + 48, 8, 5);
     }
 
-    ctx.fillStyle = '#2b6cb0';
-    ctx.fillRect(player.w / 2 - 4, -player.h + 8, 12, 6);
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.42, -h + 16, w * 0.42, h * 0.3, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#f5f5f0';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.52, -h + 16, w * 0.24, h * 0.2, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.3, -h + 4, w * 0.22, h * 0.14, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(w * 0.68, -h + 2, w * 0.22, h * 0.13, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#8a5a2b';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.34, -h + 10, 3.5, 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(w * 0.62, -h + 9, 3.5, 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#222';
+    ctx.fillRect(w * 0.42, -h + 12, 3, 3);
+    ctx.fillRect(w * 0.56, -h + 12, 3, 3);
+
+    ctx.fillStyle = '#1c1c1c';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.78, -h + 14, 6, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.beginPath();
+    ctx.ellipse(w * 0.82, -h + 14, 2.5, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const tailWag = player.onGround ? Math.sin(player.legPhase * 2) * 0.5 : -0.4;
+    ctx.save();
+    ctx.translate(-w * 0.5, -h + 24);
+    ctx.rotate(-0.5 + tailWag);
+    ctx.fillStyle = '#1c1c1c';
+    ctx.fillRect(-4, -16, 8, 16);
+    ctx.fillStyle = '#f5f5f0';
+    ctx.fillRect(-4, -16, 8, 6);
+    ctx.restore();
 
     ctx.restore();
   }
