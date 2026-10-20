@@ -113,10 +113,8 @@
       return;
     }
     if (state === STATE.OVER) {
-      if (newBestFlash > 30) {
-        state = STATE.READY;
-        reset();
-      }
+      state = STATE.RUNNING;
+      reset();
       return;
     }
     if (player.onGround) {
@@ -130,6 +128,12 @@
   }
 
   window.addEventListener('keydown', e => {
+    if (state === STATE.OVER) {
+      e.preventDefault();
+      state = STATE.RUNNING;
+      reset();
+      return;
+    }
     if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
       e.preventDefault();
       jump();
